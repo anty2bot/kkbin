@@ -1,0 +1,138 @@
+#!/bin/bash
+#
+# Author:      anty2dot@gmail.com
+# Description: Wrapper script for minicom usage
+# Created:     2025-07-09
+# License:     MIT
+#
+# Usage: kkminicom [-d device] [-c] [-h]
+#
+#   -d   Select serial port (e.g. /dev/ttyUSB0)
+#   -c   Clear serial logs before starting
+#   -h   Show help message
+#
+# ---------------------------
+# Example:
+#
+#   # Connect to /dev/ttyUSB0 and save logs to /tmp/logs or $HOME
+#   $ ./bin/kkminicom -d /dev/ttyUSB0
+#
+#   # Connect and clear previous logs before saving
+#   $ ./bin/kkminicom -d /dev/ttyUSB0 -c
+#
+
+readonly ENABLE_MINICOM_HOME=true     # If true, minicom will use a fake HOME
+readonly DEFAULT_MINICOM_BAUD=921600
+
+usage() {
+  cat <<EOF
+  Usage: $0 [-d device]
+    -d   select serial port
+    -c   clear serial logs
+    -h   show help
+ 
+  ---------------------------
+  example:
+    # connect to /dev/ttyUSB0, and save logs at /tmp/logs or $HOME
+    $ $0 -d /dev/ttyUSB0
+EOF
+  exit 1
+}
+
+check_minicom() {
+  if ! command -v minicom &>/dev/null; then
+    echo "minicom is not installed. Please try installing it with the following command:"
+    echo "---------------------------------------------"
+    echo "$ sudo apt update && sudo apt install minicom"
+    echo "---------------------------------------------"
+    exit 1
+  fi
+
+  # Recommand to update minicom to 2.8 or higher version
+  # * Ubuntu <= 20.04 lts minicom 2.7.1
+  # * Ubuntu >= 22.04 lts minicom 2.8.2 (support -O, --option timestamp)
+  readonly local MINICOM_VERSION="$(minicom --version | head -n 1 | awk '{print $3}')"
+  readonly local MINICOM_VERSION_MIN="2.8"
+  if ! dpkg --compare-versions $MINICOM_VERSION ge $MINICOM_VERSION_MIN; then
+    echo "[WARNING] Minicom $MINICOM_VERSION is less than $MINICOM_VERSION_MIN. Please update to the latest version."
+    echo "Update command: sudo apt update && sudo apt upgrade minicom"
+  fi
+}
+
+config_minicom() {
+  readonly MINICOM_SERIAL_DEVICE="$1"
+  readonly MINICOM_LOGS_CLEAR="$2"
+
+  if [[ -z "$MINICOM_SERIAL_DEVICE" || ! "$MINICOM_SERIAL_DEVICE" =~ ^/dev/ttyUSB[0-9]+$ || ! -e "$MINICOM_SERIAL_DEVICE" ]]; then
+    echo "Error: Serial device $MINICOM_SERIAL_DEVICE does not exist."
+    return 1
+  fi
+
+  readonly MINICOM_SERIAL_PORT="$(basename $MINICOM_SERIAL_DEVICE)"
+  if [[ "$ENABLE_MINICOM_HOME" == "true" ]]; then
+    readonly MINICOM_HOME=/tmp/logs
+    readonly MINICOM_CONF=$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT
+    mkdir -p $MINICOM_HOME
+    readonly MINICOM_LOGS=$MINICOM_HOME/serial-$MINICOM_SERIAL_PORT.log
+  else
+    readonly MINICOM_HOME=$HOME
+    readonly MINICOM_CONF=$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT
+    readonly MINICOM_LOGS=$MINICOM_HOME/serial-$MINICOM_SERIAL_PORT.log
+  fi
+
+  readonly MINICOM_SERIAL_BUAD="$DEFAULT_MINICOM_BAUD"
+  if [[ ! -f "$MINICOM_CONF" ]]; then
+    cat <<EOF > "$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT"
+pu port             $MINICOM_SERIAL_DEVICE
+pu baudrate         $MINICOM_SERIAL_BUAD
+EOF
+  fi
+
+  if [[ -f "/var/lock/LCK..$MINICOM_SERIAL_PORT" ]]; then
+    echo Device $MINICOM_SERIAL_DEVICE is locked
+    echo Please Run the following command to identify which process is locking the device.
+    echo $ lsof $MINICOM_SERIAL_DEVICE
+    exit 1
+  fi
+
+  if [[ "$MINICOM_LOGS_CLEAR" == "true" ]]; then
+    echo "" > $MINICOM_LOGS
+  fi
+
+  # Note
+  #  -w                             Turns line-wrap on at startup by default.
+  #  -C [LOGFILE]                   Open capture file at startup.
+  #  --capturefile-buffer-mode=F    Config Capture Buffer Mode
+  #                                   --capturefile-buffer-mode=N  No buffered, default
+  #                                   --capturefile-buffer-mode=L  Line buffered
+  #                                   --capturefile-buffer-mode=F  Fully buffered, write all at once when the capture buffer is full (4096 bytes - default)
+  #
+  #  -O timestamp=extended          Enable timestamp
+  #                                   -O timestamp=simple          ([2025-01-06 16:41:51], default)
+  #                                   -O timestamp=delta           ([0.218])
+  #                                   -O timestamp=persecond       (insert timestamp at new line per second)
+  #                                   -O timestamp=extended        ([2025-01-06 16:40:49.859])
+  #
+  #  $MINICOM_SERIAL_PORT           Get minicom default configuration from $MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT
+  MINICOM="-w -C $MINICOM_LOGS --capturefile-buffer-mode=N -O timestamp=extended $MINICOM_SERIAL_PORT"
+  HOME=$MINICOM_HOME MINICOM=$MINICOM minicom
+}
+
+SELECT_DEVICE="ttyUSB"
+CLEAR_DEVICE_LOG="false"
+
+while getopts "d:ch" opt; do
+  case "$opt" in
+    d)
+      SELECT_DEVICE="$OPTARG"
+      ;;
+    c)
+      CLEAR_DEVICE_LOG="true"
+      ;;
+    h | *)
+      usage ;;
+  esac
+done
+
+check_minicom
+config_minicom $SELECT_DEVICE $CLEAR_DEVICE_LOG
