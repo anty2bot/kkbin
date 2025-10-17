@@ -5,9 +5,10 @@
 # Created:     2025-07-09
 # License:     MIT
 #
-# Usage: kkminicom [-d device] [-c] [-h]
+# Usage: kkminicom [-d device] [-b baudrate] [-c] [-h]
 #
 #   -d   Select serial port (e.g. /dev/ttyUSB0)
+#   -b   Select serial baudrate (e.g. 921600, 115200)
 #   -c   Clear serial logs before starting
 #   -h   Show help message
 #
@@ -26,8 +27,9 @@ readonly DEFAULT_MINICOM_BAUD=921600
 
 usage() {
   cat << EOF
-  Usage: $0 [-d device]
+  Usage: $0 [-d device] [-b baudrate] [-c] [-h]
     -d   select serial port
+    -b   select serial baudrate
     -c   clear serial logs
     -h   show help
 
@@ -35,6 +37,9 @@ usage() {
   example:
     # connect to /dev/ttyUSB0, and save logs at /tmp/logs or $HOME
     $ $0 -d /dev/ttyUSB0
+
+    # connect to /dev/ttyUSB0 with 115200 baudrate, and save logs at /tmp/logs or $HOME
+    $ $0 -d /dev/ttyUSB0 -b 115200
 EOF
   exit 1
 }
@@ -51,8 +56,12 @@ check_minicom() {
   # Recommand to update minicom to 2.8 or higher version
   # * Ubuntu <= 20.04 lts minicom 2.7.1
   # * Ubuntu >= 22.04 lts minicom 2.8.2 (support -O, --option timestamp)
-  local MINICOM_VERSION; MINICOM_VERSION="$(minicom --version | head -n 1 | awk '{print $3}')"; readonly MINICOM_VERSION
-  local MINICOM_VERSION_MIN; MINICOM_VERSION_MIN="2.8"; readonly MINICOM_VERSION_MIN
+  local MINICOM_VERSION
+  MINICOM_VERSION="$(minicom --version | head -n 1 | awk '{print $3}')"
+  readonly MINICOM_VERSION
+  local MINICOM_VERSION_MIN
+  MINICOM_VERSION_MIN="2.8"
+  readonly MINICOM_VERSION_MIN
   if ! dpkg --compare-versions "$MINICOM_VERSION" ge $MINICOM_VERSION_MIN; then
     echo "[WARNING] Minicom $MINICOM_VERSION is less than $MINICOM_VERSION_MIN. Please update to the latest version."
     echo "Update command: sudo apt update && sudo apt upgrade minicom"
@@ -61,14 +70,16 @@ check_minicom() {
 
 config_minicom() {
   readonly MINICOM_SERIAL_DEVICE="$1"
-  readonly MINICOM_LOGS_CLEAR="$2"
+  readonly MINICOM_SERIAL_BUAD="$2"
+  readonly MINICOM_LOGS_CLEAR="$3"
 
-  if [[ -z "$MINICOM_SERIAL_DEVICE" || ! "$MINICOM_SERIAL_DEVICE" =~ ^/dev/ttyUSB[0-9]+$ || ! -e "$MINICOM_SERIAL_DEVICE" ]]; then
+  if [[ -z "$MINICOM_SERIAL_DEVICE" || ! "$MINICOM_SERIAL_DEVICE" =~ ^/dev/tty(USB|ACM)[0-9]+$ || ! -e "$MINICOM_SERIAL_DEVICE" ]]; then
     echo "Error: Serial device $MINICOM_SERIAL_DEVICE does not exist."
     return 1
   fi
 
-  MINICOM_SERIAL_PORT="$(basename "$MINICOM_SERIAL_DEVICE")"; readonly MINICOM_SERIAL_PORT
+  MINICOM_SERIAL_PORT="$(basename "$MINICOM_SERIAL_DEVICE")"
+  readonly MINICOM_SERIAL_PORT
   if [[ "$ENABLE_MINICOM_HOME" == "true" ]]; then
     readonly MINICOM_HOME=/tmp/logs
     readonly MINICOM_CONF=$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT
@@ -80,13 +91,10 @@ config_minicom() {
     readonly MINICOM_LOGS=$MINICOM_HOME/serial-$MINICOM_SERIAL_PORT.log
   fi
 
-  readonly MINICOM_SERIAL_BUAD="$DEFAULT_MINICOM_BAUD"
-  if [[ ! -f "$MINICOM_CONF" ]]; then
-    cat << EOF > "$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT"
+  cat << EOF > "$MINICOM_CONF"
 pu port             $MINICOM_SERIAL_DEVICE
 pu baudrate         $MINICOM_SERIAL_BUAD
 EOF
-  fi
 
   if [[ -f "/var/lock/LCK..$MINICOM_SERIAL_PORT" ]]; then
     echo Device "$MINICOM_SERIAL_DEVICE" is locked
@@ -119,12 +127,16 @@ EOF
 }
 
 SELECT_DEVICE="ttyUSB"
+SELECT_BAUD="$DEFAULT_MINICOM_BAUD"
 CLEAR_DEVICE_LOG="false"
 
-while getopts "d:ch" opt; do
+while getopts "d:b:ch" opt; do
   case "$opt" in
     d)
       SELECT_DEVICE="$OPTARG"
+      ;;
+    b)
+      SELECT_BAUD="$OPTARG"
       ;;
     c)
       CLEAR_DEVICE_LOG="true"
@@ -136,4 +148,4 @@ while getopts "d:ch" opt; do
 done
 
 check_minicom
-config_minicom "$SELECT_DEVICE" "$CLEAR_DEVICE_LOG"
+config_minicom "$SELECT_DEVICE" "$SELECT_BAUD" "$CLEAR_DEVICE_LOG"
