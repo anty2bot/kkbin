@@ -1,0 +1,39 @@
+# =========================================================
+#  Shell Script Formatting Configuration (for shfmt)
+#  Shell 脚本格式化配置文件（适用于 shfmt）
+# =========================================================
+root = true   # This is the top-level config file / 顶层配置，不再向上级目录继承
+
+[kkminicom]
+
+# Use spaces instead of tabs for indentation
+# 使用空格缩进（而非 Tab）
+indent_style = space
+
+# Number of spaces per indent level (2 or 4 recommended)
+# 每级缩进的空格数（推荐 2 或 4）
+indent_size = 2
+
+# Use Unix-style line endings (LF)
+# 使用 Unix 换行符（LF）
+end_of_line = lf
+
+# Remove any trailing spaces at end of line
+# 删除每行末尾多余空格
+trim_trailing_whitespace = true
+
+# Ensure the file ends with a newline
+# 确保文件末尾有一个换行符
+insert_final_newline = true
+
+# Indent case/esac blocks
+# 缩进 case/esac 语句块内部
+switch_case_indent = true
+
+# Put binary operators (&&, ||) at beginning of continued lines
+# 当命令换行时，将逻辑操作符（&&、||）放在新行开头
+binary_next_line = true
+
+# Add spaces around redirection operators (> >> < <<)
+# 在重定向操作符（>、>>、<、<<）前后添加空格
+space_redirects = true

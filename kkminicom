@@ -21,16 +21,16 @@
 #   $ ./bin/kkminicom -d /dev/ttyUSB0 -c
 #
 
-readonly ENABLE_MINICOM_HOME=true     # If true, minicom will use a fake HOME
+readonly ENABLE_MINICOM_HOME=true # If true, minicom will use a fake HOME
 readonly DEFAULT_MINICOM_BAUD=921600
 
 usage() {
-  cat <<EOF
+  cat << EOF
   Usage: $0 [-d device]
     -d   select serial port
     -c   clear serial logs
     -h   show help
- 
+
   ---------------------------
   example:
     # connect to /dev/ttyUSB0, and save logs at /tmp/logs or $HOME
@@ -40,7 +40,7 @@ EOF
 }
 
 check_minicom() {
-  if ! command -v minicom &>/dev/null; then
+  if ! command -v minicom &> /dev/null; then
     echo "minicom is not installed. Please try installing it with the following command:"
     echo "---------------------------------------------"
     echo "$ sudo apt update && sudo apt install minicom"
@@ -51,9 +51,9 @@ check_minicom() {
   # Recommand to update minicom to 2.8 or higher version
   # * Ubuntu <= 20.04 lts minicom 2.7.1
   # * Ubuntu >= 22.04 lts minicom 2.8.2 (support -O, --option timestamp)
-  readonly local MINICOM_VERSION="$(minicom --version | head -n 1 | awk '{print $3}')"
-  readonly local MINICOM_VERSION_MIN="2.8"
-  if ! dpkg --compare-versions $MINICOM_VERSION ge $MINICOM_VERSION_MIN; then
+  local MINICOM_VERSION; MINICOM_VERSION="$(minicom --version | head -n 1 | awk '{print $3}')"; readonly MINICOM_VERSION
+  local MINICOM_VERSION_MIN; MINICOM_VERSION_MIN="2.8"; readonly MINICOM_VERSION_MIN
+  if ! dpkg --compare-versions "$MINICOM_VERSION" ge $MINICOM_VERSION_MIN; then
     echo "[WARNING] Minicom $MINICOM_VERSION is less than $MINICOM_VERSION_MIN. Please update to the latest version."
     echo "Update command: sudo apt update && sudo apt upgrade minicom"
   fi
@@ -68,7 +68,7 @@ config_minicom() {
     return 1
   fi
 
-  readonly MINICOM_SERIAL_PORT="$(basename $MINICOM_SERIAL_DEVICE)"
+  MINICOM_SERIAL_PORT="$(basename "$MINICOM_SERIAL_DEVICE")"; readonly MINICOM_SERIAL_PORT
   if [[ "$ENABLE_MINICOM_HOME" == "true" ]]; then
     readonly MINICOM_HOME=/tmp/logs
     readonly MINICOM_CONF=$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT
@@ -82,21 +82,21 @@ config_minicom() {
 
   readonly MINICOM_SERIAL_BUAD="$DEFAULT_MINICOM_BAUD"
   if [[ ! -f "$MINICOM_CONF" ]]; then
-    cat <<EOF > "$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT"
+    cat << EOF > "$MINICOM_HOME/.minirc.$MINICOM_SERIAL_PORT"
 pu port             $MINICOM_SERIAL_DEVICE
 pu baudrate         $MINICOM_SERIAL_BUAD
 EOF
   fi
 
   if [[ -f "/var/lock/LCK..$MINICOM_SERIAL_PORT" ]]; then
-    echo Device $MINICOM_SERIAL_DEVICE is locked
+    echo Device "$MINICOM_SERIAL_DEVICE" is locked
     echo Please Run the following command to identify which process is locking the device.
-    echo $ lsof $MINICOM_SERIAL_DEVICE
+    echo $ lsof "$MINICOM_SERIAL_DEVICE"
     exit 1
   fi
 
   if [[ "$MINICOM_LOGS_CLEAR" == "true" ]]; then
-    echo "" > $MINICOM_LOGS
+    echo "" > "$MINICOM_LOGS"
   fi
 
   # Note
@@ -130,9 +130,10 @@ while getopts "d:ch" opt; do
       CLEAR_DEVICE_LOG="true"
       ;;
     h | *)
-      usage ;;
+      usage
+      ;;
   esac
 done
 
 check_minicom
-config_minicom $SELECT_DEVICE $CLEAR_DEVICE_LOG
+config_minicom "$SELECT_DEVICE" "$CLEAR_DEVICE_LOG"
